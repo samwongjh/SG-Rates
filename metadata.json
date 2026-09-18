@@ -1,0 +1,6 @@
+{
+  "name": "Singapore Exchange & SORA Rates",
+  "description": "Daily Singapore exchange rates (SGD) and daily SORA interest rates with interactive historical trends, rapid search, and exportable charts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
