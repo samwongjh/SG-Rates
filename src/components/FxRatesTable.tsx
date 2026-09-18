@@ -9,6 +9,8 @@ import {
   Repeat,
   Download,
   Filter,
+  Star,
+  Bookmark,
 } from 'lucide-react';
 import { exportToCsv } from '../utils/exportUtils';
 
@@ -17,6 +19,8 @@ interface FxRatesTableProps {
   selectedCurrency: string;
   onSelectCurrency: (code: string) => void;
   onOpenConverterWithCurrency?: (code: string) => void;
+  bookmarkedCurrencies?: string[];
+  onToggleBookmark?: (code: string) => void;
 }
 
 type SortField = 'code' | 'name' | 'mid' | 'changePct';
@@ -27,8 +31,12 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
   selectedCurrency,
   onSelectCurrency,
   onOpenConverterWithCurrency,
+  bookmarkedCurrencies = [],
+  onToggleBookmark,
 }) => {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'major' | 'regional' | 'gainers' | 'decliners'>('all');
+  const [activeCategory, setActiveCategory] = useState<
+    'all' | 'bookmarked' | 'major' | 'regional' | 'gainers' | 'decliners'
+  >('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('code');
   const [sortDir, setSortDir] = useState<SortDirection>('asc');
@@ -42,9 +50,12 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
     }
   };
 
+  const isBookmarked = (code: string) => bookmarkedCurrencies.includes(code);
+
   const filteredCurrencies = currencies
     .filter((c) => {
       // Category filter
+      if (activeCategory === 'bookmarked' && !isBookmarked(c.code)) return false;
       if (activeCategory === 'major' && c.category !== 'major') return false;
       if (activeCategory === 'regional' && c.category !== 'regional') return false;
       if (activeCategory === 'gainers' && c.changePct <= 0) return false;
@@ -88,9 +99,11 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
     );
   };
 
+  const bookmarkedItems = currencies.filter((c) => isBookmarked(c.code));
+
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden mb-8">
-      {/* Header & Category Controls */}
+      {/* Header & Controls */}
       <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -130,11 +143,66 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
         </div>
       </div>
 
+      {/* Bookmarked Favorites Quick Ribbon */}
+      {bookmarkedItems.length > 0 && (
+        <div className="px-4 sm:px-5 py-2.5 bg-amber-50/40 border-b border-amber-100 flex items-center gap-2 overflow-x-auto">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900 shrink-0 mr-1">
+            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+            <span>Watchlist:</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {bookmarkedItems.map((c) => {
+              const isSelected = selectedCurrency === c.code;
+              const isPos = c.changePct >= 0;
+              return (
+                <button
+                  key={c.code}
+                  onClick={() => {
+                    onSelectCurrency(c.code);
+                    document.getElementById('market-historical-chart-container')?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'center',
+                    });
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all shrink-0 border ${
+                    isSelected
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                      : 'bg-white text-slate-800 border-amber-200 hover:border-amber-300 hover:bg-amber-100/50'
+                  }`}
+                  title={`Plot ${c.code} in historical chart`}
+                >
+                  <span role="img" aria-label={c.country} className="text-sm">
+                    {c.flag}
+                  </span>
+                  <span>{c.code}</span>
+                  <span className="font-mono text-[11px] font-bold text-slate-700">
+                    {(c.mid / c.unit).toFixed(c.unit === 100 && c.mid < 0.1 ? 5 : 4)}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold ${
+                      isPos ? 'text-emerald-600' : 'text-rose-600'
+                    }`}
+                  >
+                    {isPos ? '+' : ''}
+                    {c.changePct.toFixed(2)}%
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Category Tabs */}
       <div className="px-4 sm:px-5 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between overflow-x-auto gap-2 text-xs">
         <div className="flex items-center gap-1.5">
           {[
             { id: 'all', label: 'All Currencies' },
+            {
+              id: 'bookmarked',
+              label: `★ Bookmarked (${bookmarkedCurrencies.length})`,
+              badge: bookmarkedCurrencies.length,
+            },
             { id: 'major', label: 'Major (G10)' },
             { id: 'regional', label: 'ASEAN & Regional' },
             { id: 'gainers', label: 'Gainers' },
@@ -143,13 +211,13 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
             <button
               key={tab.id}
               onClick={() => setActiveCategory(tab.id as any)}
-              className={`px-3 py-1 rounded-md font-medium text-xs whitespace-nowrap transition-colors ${
+              className={`px-3 py-1 rounded-md font-medium text-xs whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                 activeCategory === tab.id
                   ? 'bg-slate-900 text-white'
                   : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
               }`}
             >
-              {tab.label}
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
@@ -159,215 +227,271 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="bg-slate-100/75 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
-              <th className="py-3 px-4 cursor-pointer select-none" onClick={() => handleSort('code')}>
-                <div className="flex items-center gap-1">
-                  <span>Currency</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-3 text-center">Unit</th>
-              <th className="py-3 px-3 text-right">Bid</th>
-              <th className="py-3 px-3 text-right">Ask</th>
-              <th
-                className="py-3 px-3 text-right cursor-pointer select-none"
-                onClick={() => handleSort('mid')}
-              >
-                <div className="flex items-center justify-end gap-1">
-                  <span>Mid Rate (SGD)</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th
-                className="py-3 px-3 text-right cursor-pointer select-none"
-                onClick={() => handleSort('changePct')}
-              >
-                <div className="flex items-center justify-end gap-1">
-                  <span>24h Change</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-4 text-center hidden md:table-cell">Day&apos;s Range</th>
-              <th className="py-3 px-3 text-center hidden lg:table-cell">7D Trend</th>
-              <th className="py-3 px-4 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredCurrencies.map((currency) => {
-              const isSelected = selectedCurrency === currency.code;
-              const isPositive = currency.changePct >= 0;
-              const precision = currency.unit === 100 && currency.mid < 0.1 ? 5 : 4;
-
-              // Range position calculation
-              const rangeDiff = currency.high24h - currency.low24h;
-              const rangePct = rangeDiff > 0 ? ((currency.mid - currency.low24h) / rangeDiff) * 100 : 50;
-
-              return (
-                <tr
-                  key={currency.code}
-                  className={`hover:bg-slate-50 transition-colors ${
-                    isSelected ? 'bg-blue-50/50 font-medium' : ''
-                  }`}
+      {/* Empty state for bookmarked filter */}
+      {filteredCurrencies.length === 0 && activeCategory === 'bookmarked' ? (
+        <div className="py-12 px-4 text-center">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+            <Star className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 mb-1">
+            No Bookmarked Currencies Yet
+          </h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+            Click the star icon next to any currency in the table to bookmark it for quick access and monitoring.
+          </p>
+          <button
+            onClick={() => setActiveCategory('all')}
+            className="px-3.5 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors"
+          >
+            View All Currencies
+          </button>
+        </div>
+      ) : (
+        /* Table */
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100/75 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                <th className="py-3 px-3 text-center w-10">★</th>
+                <th
+                  className="py-3 px-3 cursor-pointer select-none"
+                  onClick={() => handleSort('code')}
                 >
-                  {/* Currency Name & Flag */}
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xl shrink-0 select-none" role="img" aria-label={currency.country}>
-                        {currency.flag}
-                      </span>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-900">{currency.code}</span>
-                          <span className="text-slate-400">/</span>
-                          <span className="text-slate-500 font-medium">SGD</span>
+                  <div className="flex items-center gap-1">
+                    <span>Currency</span>
+                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  </div>
+                </th>
+                <th className="py-3 px-3 text-center">Unit</th>
+                <th className="py-3 px-3 text-right">Bid</th>
+                <th className="py-3 px-3 text-right">Ask</th>
+                <th
+                  className="py-3 px-3 text-right cursor-pointer select-none"
+                  onClick={() => handleSort('mid')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    <span>Mid Rate (SGD)</span>
+                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  </div>
+                </th>
+                <th
+                  className="py-3 px-3 text-right cursor-pointer select-none"
+                  onClick={() => handleSort('changePct')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    <span>24h Change</span>
+                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  </div>
+                </th>
+                <th className="py-3 px-4 text-center hidden md:table-cell">Day&apos;s Range</th>
+                <th className="py-3 px-3 text-center hidden lg:table-cell">7D Trend</th>
+                <th className="py-3 px-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredCurrencies.map((currency) => {
+                const isSelected = selectedCurrency === currency.code;
+                const isPositive = currency.changePct >= 0;
+                const precision = currency.unit === 100 && currency.mid < 0.1 ? 5 : 4;
+                const bookmarked = isBookmarked(currency.code);
+
+                // Range position calculation
+                const rangeDiff = currency.high24h - currency.low24h;
+                const rangePct =
+                  rangeDiff > 0
+                    ? ((currency.mid - currency.low24h) / rangeDiff) * 100
+                    : 50;
+
+                return (
+                  <tr
+                    key={currency.code}
+                    className={`hover:bg-slate-50 transition-colors ${
+                      isSelected ? 'bg-blue-50/50 font-medium' : ''
+                    }`}
+                  >
+                    {/* Bookmark Star Toggle */}
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleBookmark?.(currency.code);
+                        }}
+                        className="p-1 rounded hover:bg-slate-200 transition-colors inline-flex items-center justify-center"
+                        title={
+                          bookmarked
+                            ? `Remove ${currency.code} from bookmarks`
+                            : `Bookmark ${currency.code} for monitoring`
+                        }
+                      >
+                        <Star
+                          className={`w-4 h-4 transition-all ${
+                            bookmarked
+                              ? 'fill-amber-400 text-amber-500 scale-110'
+                              : 'text-slate-300 hover:text-amber-400'
+                          }`}
+                        />
+                      </button>
+                    </td>
+
+                    {/* Currency Name & Flag */}
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="text-xl shrink-0 select-none"
+                          role="img"
+                          aria-label={currency.country}
+                        >
+                          {currency.flag}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{currency.code}</span>
+                            <span className="text-slate-400">/</span>
+                            <span className="text-slate-500 font-medium">SGD</span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block truncate max-w-[120px] sm:max-w-[160px]">
+                            {currency.name}
+                          </span>
                         </div>
-                        <span className="text-[11px] text-slate-500 block truncate max-w-[120px] sm:max-w-[160px]">
-                          {currency.name}
+                      </div>
+                    </td>
+
+                    {/* Unit */}
+                    <td className="py-3 px-3 text-center">
+                      <span
+                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
+                          currency.unit === 100
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {currency.unit === 100 ? 'per 100' : 'per 1'}
+                      </span>
+                    </td>
+
+                    {/* Bid */}
+                    <td className="py-3 px-3 text-right font-mono text-slate-600">
+                      {currency.bid.toFixed(precision)}
+                    </td>
+
+                    {/* Ask */}
+                    <td className="py-3 px-3 text-right font-mono text-slate-600">
+                      {currency.ask.toFixed(precision)}
+                    </td>
+
+                    {/* Mid Rate */}
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 text-sm">
+                      {currency.mid.toFixed(precision)}
+                    </td>
+
+                    {/* Change */}
+                    <td className="py-3 px-3 text-right">
+                      <div
+                        className={`inline-flex items-center gap-1 font-semibold text-xs ${
+                          isPositive ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {isPositive ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        <span>
+                          {isPositive ? '+' : ''}
+                          {currency.changePct.toFixed(2)}%
                         </span>
                       </div>
-                    </div>
-                  </td>
-
-                  {/* Unit */}
-                  <td className="py-3 px-3 text-center">
-                    <span
-                      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
-                        currency.unit === 100
-                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {currency.unit === 100 ? 'per 100' : 'per 1'}
-                    </span>
-                  </td>
-
-                  {/* Bid */}
-                  <td className="py-3 px-3 text-right font-mono text-slate-600">
-                    {currency.bid.toFixed(precision)}
-                  </td>
-
-                  {/* Ask */}
-                  <td className="py-3 px-3 text-right font-mono text-slate-600">
-                    {currency.ask.toFixed(precision)}
-                  </td>
-
-                  {/* Mid Rate */}
-                  <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 text-sm">
-                    {currency.mid.toFixed(precision)}
-                  </td>
-
-                  {/* Change */}
-                  <td className="py-3 px-3 text-right">
-                    <div
-                      className={`inline-flex items-center gap-1 font-semibold text-xs ${
-                        isPositive ? 'text-emerald-600' : 'text-rose-600'
-                      }`}
-                    >
-                      {isPositive ? (
-                        <TrendingUp className="w-3 h-3" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3" />
-                      )}
-                      <span>
+                      <div className="text-[10px] text-slate-400 font-mono">
                         {isPositive ? '+' : ''}
-                        {currency.changePct.toFixed(2)}%
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      {isPositive ? '+' : ''}
-                      {currency.change.toFixed(precision)}
-                    </div>
-                  </td>
-
-                  {/* 24h Range Bar */}
-                  <td className="py-3 px-4 hidden md:table-cell">
-                    <div className="w-32 mx-auto">
-                      <div className="flex justify-between text-[9px] font-mono text-slate-400 mb-0.5">
-                        <span>{currency.low24h.toFixed(precision)}</span>
-                        <span>{currency.high24h.toFixed(precision)}</span>
+                        {currency.change.toFixed(precision)}
                       </div>
-                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden relative">
-                        <div
-                          className="bg-blue-600 h-1.5 rounded-full"
-                          style={{ width: `${Math.min(100, Math.max(0, rangePct))}%` }}
-                        ></div>
+                    </td>
+
+                    {/* 24h Range Bar */}
+                    <td className="py-3 px-4 hidden md:table-cell">
+                      <div className="w-32 mx-auto">
+                        <div className="flex justify-between text-[9px] font-mono text-slate-400 mb-0.5">
+                          <span>{currency.low24h.toFixed(precision)}</span>
+                          <span>{currency.high24h.toFixed(precision)}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden relative">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full"
+                            style={{ width: `${Math.min(100, Math.max(0, rangePct))}%` }}
+                          ></div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Sparkline */}
-                  <td className="py-3 px-3 text-center hidden lg:table-cell">
-                    <div className="w-20 h-6 mx-auto flex items-center justify-center">
-                      <svg className="w-20 h-6 overflow-visible" viewBox="0 0 100 24">
-                        {(() => {
-                          const min = Math.min(...currency.sparkline);
-                          const max = Math.max(...currency.sparkline);
-                          const range = max - min || 1;
-                          const points = currency.sparkline
-                            .map((val, idx) => {
-                              const x = (idx / (currency.sparkline.length - 1)) * 100;
-                              const y = 20 - ((val - min) / range) * 16;
-                              return `${x},${y}`;
-                            })
-                            .join(' ');
-                          return (
-                            <polyline
-                              fill="none"
-                              stroke={isPositive ? '#16a34a' : '#e11d48'}
-                              strokeWidth="1.75"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              points={points}
-                            />
-                          );
-                        })()}
-                      </svg>
-                    </div>
-                  </td>
+                    {/* Sparkline */}
+                    <td className="py-3 px-3 text-center hidden lg:table-cell">
+                      <div className="w-20 h-6 mx-auto flex items-center justify-center">
+                        <svg className="w-20 h-6 overflow-visible" viewBox="0 0 100 24">
+                          {(() => {
+                            const min = Math.min(...currency.sparkline);
+                            const max = Math.max(...currency.sparkline);
+                            const range = max - min || 1;
+                            const points = currency.sparkline
+                              .map((val, idx) => {
+                                const x = (idx / (currency.sparkline.length - 1)) * 100;
+                                const y = 20 - ((val - min) / range) * 16;
+                                return `${x},${y}`;
+                              })
+                              .join(' ');
+                            return (
+                              <polyline
+                                fill="none"
+                                stroke={isPositive ? '#16a34a' : '#e11d48'}
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                points={points}
+                              />
+                            );
+                          })()}
+                        </svg>
+                      </div>
+                    </td>
 
-                  {/* Actions */}
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => {
-                          onSelectCurrency(currency.code);
-                          // Scroll smoothly to chart
-                          document.getElementById('market-historical-chart-container')?.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center',
-                          });
-                        }}
-                        className={`p-1.5 rounded-md transition-colors ${
-                          isSelected
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                        }`}
-                        title="View Historical Trend"
-                      >
-                        <LineChart className="w-3.5 h-3.5" />
-                      </button>
-
-                      {onOpenConverterWithCurrency && (
+                    {/* Actions */}
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
-                          onClick={() => onOpenConverterWithCurrency(currency.code)}
-                          className="p-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
-                          title="Convert Currency"
+                          onClick={() => {
+                            onSelectCurrency(currency.code);
+                            document.getElementById('market-historical-chart-container')?.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'center',
+                            });
+                          }}
+                          className={`p-1.5 rounded-md transition-colors ${
+                            isSelected
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                          }`}
+                          title="View Historical Trend"
                         >
-                          <Repeat className="w-3.5 h-3.5" />
+                          <LineChart className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+
+                        {onOpenConverterWithCurrency && (
+                          <button
+                            onClick={() => onOpenConverterWithCurrency(currency.code)}
+                            className="p-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+                            title="Convert Currency"
+                          >
+                            <Repeat className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Footer Notes */}
       <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">

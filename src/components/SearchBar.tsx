@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, TrendingUp, TrendingDown, DollarSign, Percent, ArrowRight } from 'lucide-react';
+import { Search, X, TrendingUp, TrendingDown, DollarSign, Percent, ArrowRight, Star } from 'lucide-react';
 import { CurrencyRate, SoraRate, SearchResultItem } from '../types';
 
 interface SearchBarProps {
@@ -9,6 +9,8 @@ interface SearchBarProps {
   soraRates: SoraRate[];
   onSelectCurrency: (code: string) => void;
   onSelectSora: (tenor: string) => void;
+  bookmarkedCurrencies?: string[];
+  onToggleBookmark?: (code: string) => void;
 }
 
 export const SearchModal: React.FC<SearchBarProps> = ({
@@ -18,9 +20,13 @@ export const SearchModal: React.FC<SearchBarProps> = ({
   soraRates,
   onSelectCurrency,
   onSelectSora,
+  bookmarkedCurrencies = [],
+  onToggleBookmark,
 }) => {
   const [query, setQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'currency' | 'sora' | 'major' | 'regional'>('all');
+  const [filterType, setFilterType] = useState<
+    'all' | 'currency' | 'sora' | 'bookmarked' | 'major' | 'regional'
+  >('all');
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -28,10 +34,8 @@ export const SearchModal: React.FC<SearchBarProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key === 'k')) && !isOpen) {
-        // Prevent default only if not in an input
         if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
         e.preventDefault();
-        // Trigger opening handled by parent or state
       } else if (e.key === 'Escape' && isOpen) {
         onClose();
       }
@@ -60,56 +64,53 @@ export const SearchModal: React.FC<SearchBarProps> = ({
       id: `sora-${s.tenor}`,
       type: 'sora' as const,
       code: s.code,
-      title: s.name,
-      subtitle: `${s.calculationType} · MAS SORA`,
+      title: `${s.name} (${s.code})`,
+      subtitle: `MAS Benchmark • ${s.rateFormatted} • Vol: S$ ${s.volumeSgdBillions || '4.28'}B`,
       valueDisplay: s.rateFormatted,
       changePct: s.changePct,
+      category: 'sora' as const,
+      originalData: s,
       tag: 'SORA Rate',
     })),
+
     // Currency entries
     ...currencies.map((c) => ({
-      id: `fx-${c.code}`,
+      id: `currency-${c.code}`,
       type: 'currency' as const,
       code: c.code,
-      title: `${c.code} / SGD (${c.name})`,
-      subtitle: `${c.country} · Unit: ${c.unit} ${c.code} = ${c.mid.toFixed(4)} SGD`,
+      title: `${c.code}/SGD - ${c.name}`,
+      subtitle: `${c.flag} ${c.country} • Mid: ${c.mid.toFixed(c.unit === 100 && c.mid < 0.1 ? 5 : 4)} (${c.unit === 100 ? 'per 100' : 'per 1'})`,
       valueDisplay: `${c.mid.toFixed(c.unit === 100 && c.mid < 0.1 ? 5 : 4)} SGD`,
       changePct: c.changePct,
-      tag: c.category === 'major' ? 'Major FX' : 'Regional FX',
+      category: c.category,
+      originalData: c,
+      tag: c.category === 'major' ? 'G10 Major' : 'ASEAN / Reg',
     })),
   ];
 
+  // Filter items based on active tab and query string
   const filteredItems = items.filter((item) => {
-    const matchesFilter =
-      filterType === 'all'
-        ? true
-        : filterType === 'sora'
-        ? item.type === 'sora'
-        : filterType === 'currency'
-        ? item.type === 'currency'
-        : filterType === 'major'
-        ? item.tag === 'Major FX'
-        : filterType === 'regional'
-        ? item.tag === 'Regional FX'
-        : true;
+    // Type/Category Filter
+    if (filterType === 'currency' && item.type !== 'currency') return false;
+    if (filterType === 'sora' && item.type !== 'sora') return false;
+    if (filterType === 'bookmarked' && (item.type !== 'currency' || !bookmarkedCurrencies.includes(item.code))) return false;
+    if (filterType === 'major' && item.category !== 'major') return false;
+    if (filterType === 'regional' && item.category !== 'regional') return false;
 
-    if (!matchesFilter) return false;
-
+    // Search query matching
     if (!query.trim()) return true;
-
     const q = query.toLowerCase().trim();
     return (
       item.code.toLowerCase().includes(q) ||
       item.title.toLowerCase().includes(q) ||
-      item.subtitle.toLowerCase().includes(q) ||
-      item.tag.toLowerCase().includes(q)
+      item.subtitle.toLowerCase().includes(q)
     );
   });
 
   const handleSelect = (item: SearchResultItem) => {
     if (item.type === 'sora') {
-      const tenor = item.id.replace('sora-', '');
-      onSelectSora(tenor);
+      const sora = item.originalData as SoraRate;
+      onSelectSora(sora.tenor);
     } else {
       onSelectCurrency(item.code);
     }
@@ -119,10 +120,10 @@ export const SearchModal: React.FC<SearchBarProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev < filteredItems.length - 1 ? prev + 1 : prev));
+      setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredItems.length));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+      setSelectedIndex((prev) => (prev - 1 + filteredItems.length) % Math.max(1, filteredItems.length));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (filteredItems[selectedIndex]) {
@@ -133,18 +134,17 @@ export const SearchModal: React.FC<SearchBarProps> = ({
 
   return (
     <div
-      id="search-modal-backdrop"
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start justify-center pt-16 sm:pt-24 px-4 overflow-y-auto"
+      id="search-modal-container"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-start justify-center pt-16 sm:pt-24 px-4"
       onClick={onClose}
     >
       <div
-        id="search-modal-container"
-        className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search header & input */}
-        <div className="p-3.5 border-b border-slate-200 flex items-center gap-3">
-          <Search className="w-5 h-5 text-slate-400 shrink-0" />
+        {/* Search Input Bar */}
+        <div className="relative border-b border-slate-200 flex items-center px-4 py-3 bg-slate-50/50">
+          <Search className="w-5 h-5 text-slate-400 mr-3 shrink-0" />
           <input
             ref={inputRef}
             id="search-rates-modal-input"
@@ -155,8 +155,8 @@ export const SearchModal: React.FC<SearchBarProps> = ({
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search USD, SORA, Ringgit, Euro, 3M SORA, Yen..."
-            className="w-full text-sm sm:text-base text-slate-900 placeholder:text-slate-400 bg-transparent focus:outline-none font-medium"
+            placeholder="Search SORA tenors, USD, EUR, MYR, Yen, interest rates..."
+            className="w-full bg-transparent text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none"
           />
           {query && (
             <button
@@ -166,19 +166,23 @@ export const SearchModal: React.FC<SearchBarProps> = ({
               <X className="w-4 h-4" />
             </button>
           )}
-          <kbd className="hidden sm:inline-block px-2 py-0.5 text-[11px] font-mono text-slate-400 bg-slate-100 border border-slate-200 rounded">
+          <button
+            onClick={onClose}
+            className="ml-2 text-xs font-semibold px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded"
+          >
             ESC
-          </kbd>
+          </button>
         </div>
 
-        {/* Quick Filter Categories */}
-        <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto text-xs">
+        {/* Filter Pills */}
+        <div className="px-4 py-2 border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto text-xs bg-slate-50/30">
           {[
             { id: 'all', label: 'All Rates' },
+            { id: 'bookmarked', label: `★ Watchlist (${bookmarkedCurrencies.length})` },
             { id: 'sora', label: 'SORA Rates' },
             { id: 'currency', label: 'All Currencies' },
-            { id: 'major', label: 'Major (G10)' },
-            { id: 'regional', label: 'ASEAN & Regional' },
+            { id: 'major', label: 'G10 Major' },
+            { id: 'regional', label: 'ASEAN & Reg' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -210,6 +214,8 @@ export const SearchModal: React.FC<SearchBarProps> = ({
             filteredItems.map((item, index) => {
               const isSelected = index === selectedIndex;
               const isPositive = item.changePct >= 0;
+              const isCurrBookmarked =
+                item.type === 'currency' && bookmarkedCurrencies.includes(item.code);
 
               return (
                 <div
@@ -224,12 +230,12 @@ export const SearchModal: React.FC<SearchBarProps> = ({
                     <div
                       className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
                         item.type === 'sora'
-                          ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
                           : 'bg-slate-100 text-slate-800 border border-slate-200'
                       }`}
                     >
                       {item.type === 'sora' ? (
-                        <Percent className="w-4 h-4 text-amber-700" />
+                        <Percent className="w-4 h-4 text-emerald-700" />
                       ) : (
                         <DollarSign className="w-4 h-4 text-slate-700" />
                       )}
@@ -240,7 +246,7 @@ export const SearchModal: React.FC<SearchBarProps> = ({
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                             item.type === 'sora'
-                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                               : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}
                         >
@@ -251,7 +257,27 @@ export const SearchModal: React.FC<SearchBarProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0 ml-3 text-right">
+                  <div className="flex items-center gap-2.5 shrink-0 ml-3 text-right">
+                    {/* Star bookmark toggle if currency */}
+                    {item.type === 'currency' && onToggleBookmark && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleBookmark(item.code);
+                        }}
+                        className="p-1 rounded hover:bg-slate-200 text-slate-400"
+                        title={isCurrBookmarked ? 'Remove bookmark' : 'Bookmark currency'}
+                      >
+                        <Star
+                          className={`w-4 h-4 ${
+                            isCurrBookmarked
+                              ? 'fill-amber-400 text-amber-500'
+                              : 'text-slate-300 hover:text-amber-400'
+                          }`}
+                        />
+                      </button>
+                    )}
+
                     <div>
                       <div className="font-mono font-bold text-sm text-slate-900">
                         {item.valueDisplay}

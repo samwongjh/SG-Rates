@@ -64,6 +64,8 @@ export interface SearchResultItem {
   changePct: number;
   tag: string;
   code: string;
+  category?: CurrencyCategory | 'sora';
+  originalData?: CurrencyRate | SoraRate;
 }
 
 export interface ApiEndpointConfig {
