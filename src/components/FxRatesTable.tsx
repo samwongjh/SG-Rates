@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CurrencyRate, CurrencyCategory } from '../types';
+import { CurrencyRate } from '../types';
 import {
   Search,
   ArrowUpDown,
@@ -8,9 +8,8 @@ import {
   LineChart,
   Repeat,
   Download,
-  Filter,
   Star,
-  Bookmark,
+  ChevronDown,
 } from 'lucide-react';
 import { exportToCsv } from '../utils/exportUtils';
 
@@ -19,6 +18,9 @@ interface FxRatesTableProps {
   selectedCurrency: string;
   onSelectCurrency: (code: string) => void;
   onOpenConverterWithCurrency?: (code: string) => void;
+  favouriteCurrencies?: string[];
+  onToggleFavourite?: (code: string) => void;
+  // Legacy aliases for backward compatibility
   bookmarkedCurrencies?: string[];
   onToggleBookmark?: (code: string) => void;
 }
@@ -31,15 +33,24 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
   selectedCurrency,
   onSelectCurrency,
   onOpenConverterWithCurrency,
-  bookmarkedCurrencies = [],
+  favouriteCurrencies: propFavourites,
+  onToggleFavourite: propOnToggleFavourite,
+  bookmarkedCurrencies,
   onToggleBookmark,
 }) => {
+  // Support both favouriteCurrencies and legacy bookmarkedCurrencies
+  const favourites = propFavourites || bookmarkedCurrencies || [];
+  const handleToggleFav = propOnToggleFavourite || onToggleBookmark || (() => {});
+
+  // Default display tab is Favourites as requested
   const [activeCategory, setActiveCategory] = useState<
-    'all' | 'bookmarked' | 'major' | 'regional' | 'gainers' | 'decliners'
-  >('all');
+    'favourites' | 'all' | 'regional' | 'gainers' | 'decliners'
+  >('favourites');
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('code');
   const [sortDir, setSortDir] = useState<SortDirection>('asc');
+  const [isAllExpanded, setIsAllExpanded] = useState<boolean>(false);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -50,13 +61,13 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
     }
   };
 
-  const isBookmarked = (code: string) => bookmarkedCurrencies.includes(code);
+  const isFavourite = (code: string) => favourites.includes(code);
 
-  const filteredCurrencies = currencies
+  // Filter currencies based on tab and search
+  const allFilteredCurrencies = currencies
     .filter((c) => {
       // Category filter
-      if (activeCategory === 'bookmarked' && !isBookmarked(c.code)) return false;
-      if (activeCategory === 'major' && c.category !== 'major') return false;
+      if (activeCategory === 'favourites' && !isFavourite(c.code)) return false;
       if (activeCategory === 'regional' && c.category !== 'regional') return false;
       if (activeCategory === 'gainers' && c.changePct <= 0) return false;
       if (activeCategory === 'decliners' && c.changePct >= 0) return false;
@@ -71,6 +82,13 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
       );
     })
     .sort((a, b) => {
+      // When in 'all' and sorting by default 'code', prioritize major currencies first
+      if (activeCategory === 'all' && !searchQuery.trim() && sortField === 'code' && sortDir === 'asc') {
+        const aIsMajor = a.category === 'major' ? 0 : 1;
+        const bIsMajor = b.category === 'major' ? 0 : 1;
+        if (aIsMajor !== bIsMajor) return aIsMajor - bIsMajor;
+      }
+
       let comparison = 0;
       if (sortField === 'code') comparison = a.code.localeCompare(b.code);
       else if (sortField === 'name') comparison = a.name.localeCompare(b.name);
@@ -79,9 +97,15 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
       return sortDir === 'asc' ? comparison : -comparison;
     });
 
+  // Limit to 10 major currencies if 'all' is selected and user hasn't expanded or searched
+  const shouldTruncateAll = activeCategory === 'all' && !isAllExpanded && !searchQuery.trim();
+  const displayCurrencies = shouldTruncateAll
+    ? allFilteredCurrencies.slice(0, 10)
+    : allFilteredCurrencies;
+
   const handleExportCsv = () => {
     exportToCsv(
-      filteredCurrencies,
+      allFilteredCurrencies,
       `singapore-exchange-rates-${new Date().toISOString().split('T')[0]}.csv`,
       [
         { key: 'code', label: 'Currency Code' },
@@ -99,7 +123,7 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
     );
   };
 
-  const bookmarkedItems = currencies.filter((c) => isBookmarked(c.code));
+  const favouriteItems = currencies.filter((c) => isFavourite(c.code));
 
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden mb-8">
@@ -143,15 +167,15 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
         </div>
       </div>
 
-      {/* Bookmarked Favorites Quick Ribbon */}
-      {bookmarkedItems.length > 0 && (
+      {/* Favourites Quick Ribbon */}
+      {favouriteItems.length > 0 && (
         <div className="px-4 sm:px-5 py-2.5 bg-amber-50/40 border-b border-amber-100 flex items-center gap-2 overflow-x-auto">
           <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900 shrink-0 mr-1">
             <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
             <span>Watchlist:</span>
           </div>
           <div className="flex items-center gap-2">
-            {bookmarkedItems.map((c) => {
+            {favouriteItems.map((c) => {
               const isSelected = selectedCurrency === c.code;
               const isPos = c.changePct >= 0;
               return (
@@ -193,17 +217,15 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
         </div>
       )}
 
-      {/* Category Tabs */}
+      {/* Category Tabs - Favourites first by default, Major (G10) tab removed */}
       <div className="px-4 sm:px-5 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between overflow-x-auto gap-2 text-xs">
         <div className="flex items-center gap-1.5">
           {[
-            { id: 'all', label: 'All Currencies' },
             {
-              id: 'bookmarked',
-              label: `★ Bookmarked (${bookmarkedCurrencies.length})`,
-              badge: bookmarkedCurrencies.length,
+              id: 'favourites',
+              label: `★ Favourites (${favourites.length})`,
             },
-            { id: 'major', label: 'Major (G10)' },
+            { id: 'all', label: 'All Currencies' },
             { id: 'regional', label: 'ASEAN & Regional' },
             { id: 'gainers', label: 'Gainers' },
             { id: 'decliners', label: 'Decliners' },
@@ -213,7 +235,7 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
               onClick={() => setActiveCategory(tab.id as any)}
               className={`px-3 py-1 rounded-md font-medium text-xs whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                 activeCategory === tab.id
-                  ? 'bg-slate-900 text-white'
+                  ? 'bg-slate-900 text-white shadow-2xs'
                   : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
               }`}
             >
@@ -223,28 +245,41 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
         </div>
 
         <div className="text-[11px] text-slate-400 font-medium hidden sm:block shrink-0">
-          Showing {filteredCurrencies.length} of {currencies.length} pairs
+          {activeCategory === 'all' && shouldTruncateAll
+            ? `Showing 10 major of ${currencies.length} pairs`
+            : `Showing ${displayCurrencies.length} of ${currencies.length} pairs`}
         </div>
       </div>
 
-      {/* Empty state for bookmarked filter */}
-      {filteredCurrencies.length === 0 && activeCategory === 'bookmarked' ? (
+      {/* Empty state for Favourites filter */}
+      {displayCurrencies.length === 0 && activeCategory === 'favourites' ? (
         <div className="py-12 px-4 text-center">
           <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
             <Star className="w-6 h-6" />
           </div>
           <h3 className="text-sm font-bold text-slate-900 mb-1">
-            No Bookmarked Currencies Yet
+            No Favourite Currencies Yet
           </h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
-            Click the star icon next to any currency in the table to bookmark it for quick access and monitoring.
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4 leading-relaxed">
+            Click the star icon next to any currency in the table or under the Instant Currency Converter to add it to your favourites for quick tracking.
           </p>
-          <button
-            onClick={() => setActiveCategory('all')}
-            className="px-3.5 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            View All Currencies
-          </button>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <button
+              onClick={() => setActiveCategory('all')}
+              className="px-3.5 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors shadow-2xs"
+            >
+              View All Currencies
+            </button>
+            {['USD', 'EUR', 'MYR', 'JPY'].map((code) => (
+              <button
+                key={code}
+                onClick={() => handleToggleFav(code)}
+                className="px-2.5 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-colors"
+              >
+                + Add {code}
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
         /* Table */
@@ -289,11 +324,11 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredCurrencies.map((currency) => {
+              {displayCurrencies.map((currency) => {
                 const isSelected = selectedCurrency === currency.code;
                 const isPositive = currency.changePct >= 0;
                 const precision = currency.unit === 100 && currency.mid < 0.1 ? 5 : 4;
-                const bookmarked = isBookmarked(currency.code);
+                const isFav = isFavourite(currency.code);
 
                 // Range position calculation
                 const rangeDiff = currency.high24h - currency.low24h;
@@ -309,23 +344,23 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
                       isSelected ? 'bg-blue-50/50 font-medium' : ''
                     }`}
                   >
-                    {/* Bookmark Star Toggle */}
+                    {/* Favourite Star Toggle */}
                     <td className="py-3 px-3 text-center">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onToggleBookmark?.(currency.code);
+                          handleToggleFav(currency.code);
                         }}
                         className="p-1 rounded hover:bg-slate-200 transition-colors inline-flex items-center justify-center"
                         title={
-                          bookmarked
-                            ? `Remove ${currency.code} from bookmarks`
-                            : `Bookmark ${currency.code} for monitoring`
+                          isFav
+                            ? `Remove ${currency.code} from favourites`
+                            : `Add ${currency.code} to favourites`
                         }
                       >
                         <Star
                           className={`w-4 h-4 transition-all ${
-                            bookmarked
+                            isFav
                               ? 'fill-amber-400 text-amber-500 scale-110'
                               : 'text-slate-300 hover:text-amber-400'
                           }`}
@@ -357,16 +392,8 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
                     </td>
 
                     {/* Unit */}
-                    <td className="py-3 px-3 text-center">
-                      <span
-                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
-                          currency.unit === 100
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {currency.unit === 100 ? 'per 100' : 'per 1'}
-                      </span>
+                    <td className="py-3 px-3 text-center font-mono font-medium text-slate-600">
+                      {currency.unit}
                     </td>
 
                     {/* Bid */}
@@ -380,15 +407,19 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
                     </td>
 
                     {/* Mid Rate */}
-                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 text-sm">
-                      {currency.mid.toFixed(precision)}
+                    <td className="py-3 px-3 text-right">
+                      <span className="font-mono font-bold text-slate-900 text-xs sm:text-sm">
+                        {currency.mid.toFixed(precision)}
+                      </span>
                     </td>
 
-                    {/* Change */}
+                    {/* 24h Change */}
                     <td className="py-3 px-3 text-right">
                       <div
-                        className={`inline-flex items-center gap-1 font-semibold text-xs ${
-                          isPositive ? 'text-emerald-600' : 'text-rose-600'
+                        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono font-bold text-[11px] ${
+                          isPositive
+                            ? 'text-emerald-700 bg-emerald-50'
+                            : 'text-rose-700 bg-rose-50'
                         }`}
                       >
                         {isPositive ? (
@@ -401,51 +432,54 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
                           {currency.changePct.toFixed(2)}%
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        {isPositive ? '+' : ''}
-                        {currency.change.toFixed(precision)}
-                      </div>
                     </td>
 
                     {/* 24h Range Bar */}
                     <td className="py-3 px-4 hidden md:table-cell">
-                      <div className="w-32 mx-auto">
-                        <div className="flex justify-between text-[9px] font-mono text-slate-400 mb-0.5">
+                      <div className="w-24 sm:w-28 mx-auto">
+                        <div className="flex justify-between text-[9px] text-slate-400 font-mono mb-1">
                           <span>{currency.low24h.toFixed(precision)}</span>
                           <span>{currency.high24h.toFixed(precision)}</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden relative">
+                        <div className="h-1.5 bg-slate-100 rounded-full relative overflow-hidden border border-slate-200">
                           <div
-                            className="bg-blue-600 h-1.5 rounded-full"
-                            style={{ width: `${Math.min(100, Math.max(0, rangePct))}%` }}
+                            className={`absolute top-0 bottom-0 rounded-full ${
+                              isPositive ? 'bg-emerald-500' : 'bg-rose-500'
+                            }`}
+                            style={{
+                              left: `${Math.max(0, Math.min(rangePct - 15, 70))}%`,
+                              width: '30%',
+                            }}
                           ></div>
                         </div>
                       </div>
                     </td>
 
-                    {/* Sparkline */}
+                    {/* Sparkline mini chart */}
                     <td className="py-3 px-3 text-center hidden lg:table-cell">
-                      <div className="w-20 h-6 mx-auto flex items-center justify-center">
-                        <svg className="w-20 h-6 overflow-visible" viewBox="0 0 100 24">
+                      <div className="w-20 h-7 mx-auto flex items-center justify-center">
+                        <svg className="w-full h-full" viewBox="0 0 80 24">
                           {(() => {
-                            const min = Math.min(...currency.sparkline);
-                            const max = Math.max(...currency.sparkline);
+                            const pts = currency.sparkline;
+                            const min = Math.min(...pts);
+                            const max = Math.max(...pts);
                             const range = max - min || 1;
-                            const points = currency.sparkline
-                              .map((val, idx) => {
-                                const x = (idx / (currency.sparkline.length - 1)) * 100;
-                                const y = 20 - ((val - min) / range) * 16;
-                                return `${x},${y}`;
+                            const polylinePts = pts
+                              .map((p, idx) => {
+                                const x = (idx / (pts.length - 1)) * 76 + 2;
+                                const y = 22 - ((p - min) / range) * 20;
+                                return `${x.toFixed(1)},${y.toFixed(1)}`;
                               })
                               .join(' ');
+
                             return (
                               <polyline
                                 fill="none"
-                                stroke={isPositive ? '#16a34a' : '#e11d48'}
-                                strokeWidth="1.75"
+                                stroke={isPositive ? '#10b981' : '#f43f5e'}
+                                strokeWidth="1.5"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                points={points}
+                                points={polylinePts}
                               />
                             );
                           })()}
@@ -490,6 +524,32 @@ export const FxRatesTable: React.FC<FxRatesTableProps> = ({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Expand / Collapse toggle button when 'All Currencies' is active */}
+      {activeCategory === 'all' && !searchQuery.trim() && (
+        <div className="p-3 bg-slate-50 border-t border-slate-200 text-center flex flex-col sm:flex-row items-center justify-center gap-2">
+          <button
+            onClick={() => setIsAllExpanded(!isAllExpanded)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg shadow-2xs transition-colors"
+          >
+            <span>
+              {isAllExpanded
+                ? 'Show Top 10 Major Currencies Only'
+                : `Expand to Show All (${currencies.length}) Currencies`}
+            </span>
+            <ChevronDown
+              className={`w-4 h-4 text-slate-500 transition-transform ${
+                isAllExpanded ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          <span className="text-[11px] text-slate-500">
+            {isAllExpanded
+              ? `Displaying all ${currencies.length} interbank currencies`
+              : `Displaying top 10 major global pairs`}
+          </span>
         </div>
       )}
 

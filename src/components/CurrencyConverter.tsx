@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { CurrencyRate } from '../types';
-import { ArrowRightLeft, DollarSign, Calculator, Info, Star } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  Calculator,
+  Info,
+  Star,
+  Plus,
+  X,
+  TrendingUp,
+  TrendingDown,
+  Sparkles,
+} from 'lucide-react';
 
 interface CurrencyConverterProps {
   currencies: CurrencyRate[];
   defaultCurrencyCode?: string;
+  favouriteCurrencies?: string[];
+  onToggleFavourite?: (code: string) => void;
+  // Backward compatibility props
   bookmarkedCurrencies?: string[];
   onToggleBookmark?: (code: string) => void;
 }
@@ -12,12 +25,19 @@ interface CurrencyConverterProps {
 export const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
   currencies,
   defaultCurrencyCode = 'USD',
-  bookmarkedCurrencies = [],
+  favouriteCurrencies: propFavourites,
+  onToggleFavourite: propOnToggleFavourite,
+  bookmarkedCurrencies,
   onToggleBookmark,
 }) => {
+  // Support both favouriteCurrencies and legacy bookmarkedCurrencies
+  const favourites = propFavourites || bookmarkedCurrencies || [];
+  const handleToggleFav = propOnToggleFavourite || onToggleBookmark || (() => {});
+
   const [selectedCurrencyCode, setSelectedCurrencyCode] = useState(defaultCurrencyCode);
   const [amount, setAmount] = useState<number>(1000);
   const [direction, setDirection] = useState<'sgd_to_foreign' | 'foreign_to_sgd'>('sgd_to_foreign');
+  const [currencyToAdd, setCurrencyToAdd] = useState<string>('');
 
   // Keep updated when defaultCurrencyCode changes (e.g. from table action)
   useEffect(() => {
@@ -27,7 +47,10 @@ export const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
   }, [defaultCurrencyCode, currencies]);
 
   const currency = currencies.find((c) => c.code === selectedCurrencyCode) || currencies[0];
-  const isBookmarked = bookmarkedCurrencies.includes(currency.code);
+  const isCurrentFavourite = favourites.includes(currency.code);
+
+  // Available currencies not yet in favourites for the quick add dropdown
+  const unaddedCurrencies = currencies.filter((c) => !favourites.includes(c.code));
 
   // Calculation taking into account unit (1 or 100)
   const unitFactor = currency.unit;
@@ -44,9 +67,18 @@ export const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
       ? convertedResult * 0.985 // retail bank gives less foreign currency
       : convertedResult * 1.015; // retail bank charges more SGD
 
+  const handleAddCurrencyToFavourites = (code: string) => {
+    if (!code) return;
+    if (!favourites.includes(code)) {
+      handleToggleFav(code);
+    }
+    setCurrencyToAdd('');
+  };
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5 h-full flex flex-col justify-between">
       <div>
+        {/* Top Header with Title and Swap */}
         <div className="flex items-center justify-between mb-3.5">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
@@ -74,35 +106,7 @@ export const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
           </button>
         </div>
 
-        {/* Bookmarked Quick Pills for fast selection */}
-        {bookmarkedCurrencies.length > 0 && (
-          <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-1 text-xs">
-            <span className="text-[10px] font-bold uppercase text-slate-400 shrink-0 mr-1 flex items-center gap-1">
-              <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
-              Watchlist:
-            </span>
-            {bookmarkedCurrencies.slice(0, 6).map((code) => {
-              const item = currencies.find((c) => c.code === code);
-              if (!item) return null;
-              const isCurrent = selectedCurrencyCode === code;
-              return (
-                <button
-                  key={code}
-                  onClick={() => setSelectedCurrencyCode(code)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors shrink-0 flex items-center gap-1 border ${
-                    isCurrent
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                  }`}
-                >
-                  <span>{item.flag}</span>
-                  <span>{code}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
+        {/* Inputs: Amount and Currency Pair */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3.5">
           {/* Input amount */}
           <div>
@@ -129,22 +133,29 @@ export const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
               <label className="block text-[11px] font-bold uppercase text-slate-400">
                 Currency Pair
               </label>
-              {onToggleBookmark && (
-                <button
-                  onClick={() => onToggleBookmark(currency.code)}
-                  className="text-[11px] font-semibold flex items-center gap-1 text-slate-500 hover:text-amber-600 transition-colors"
-                  title={isBookmarked ? 'Remove bookmark' : 'Bookmark currency'}
-                >
-                  <Star
-                    className={`w-3.5 h-3.5 ${
-                      isBookmarked
-                        ? 'fill-amber-400 text-amber-500'
-                        : 'text-slate-300'
-                    }`}
-                  />
-                  <span>{isBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => handleToggleFav(currency.code)}
+                className={`text-[11px] font-semibold flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded ${
+                  isCurrentFavourite
+                    ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
+                    : 'text-slate-500 hover:text-amber-600 bg-slate-100 hover:bg-slate-200'
+                }`}
+                title={
+                  isCurrentFavourite
+                    ? `Remove ${currency.code} from favourites`
+                    : `Add ${currency.code} to favourites`
+                }
+              >
+                <Star
+                  className={`w-3.5 h-3.5 ${
+                    isCurrentFavourite
+                      ? 'fill-amber-400 text-amber-500'
+                      : 'text-slate-400'
+                  }`}
+                />
+                <span>{isCurrentFavourite ? 'In Favourites' : 'Add Favourite'}</span>
+              </button>
             </div>
             <select
               value={selectedCurrencyCode}
@@ -161,7 +172,7 @@ export const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
         </div>
 
         {/* Result Display */}
-        <div className="bg-slate-50 rounded-lg p-3.5 border border-slate-200 mb-3">
+        <div className="bg-slate-50 rounded-lg p-3.5 border border-slate-200 mb-4">
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
             {direction === 'sgd_to_foreign'
               ? `You Receive (${currency.code})`
@@ -185,6 +196,141 @@ export const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
                 ? `${retailResult.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency.code}`
                 : `${retailResult.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} SGD`}
             </span>
+          </div>
+        </div>
+
+        {/* PROMINENT WATCHLIST & FAVOURITES MANAGEMENT SECTION */}
+        <div className="bg-amber-50/50 rounded-xl border border-amber-200/80 p-3.5 mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-md bg-amber-100 flex items-center justify-center text-amber-700">
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+              </div>
+              <span className="text-xs font-bold text-slate-900 tracking-tight">
+                Watchlist & Favourite Currencies
+              </span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                {favourites.length}
+              </span>
+            </div>
+
+            {/* Quick Add Dropdown */}
+            {unaddedCurrencies.length > 0 && (
+              <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                <select
+                  value={currencyToAdd}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) {
+                      handleAddCurrencyToFavourites(val);
+                    }
+                  }}
+                  className="text-xs bg-white text-slate-700 border border-amber-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                >
+                  <option value="">+ Add to Favourites...</option>
+                  {unaddedCurrencies.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.code} ({c.name})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Favourites Chip List with Quick Click to Convert & Quick Remove X */}
+          {favourites.length > 0 ? (
+            <div className="flex items-center flex-wrap gap-1.5">
+              {favourites.map((code) => {
+                const item = currencies.find((c) => c.code === code);
+                if (!item) return null;
+                const isSelected = selectedCurrencyCode === code;
+                const isPos = item.changePct >= 0;
+
+                return (
+                  <div
+                    key={code}
+                    className={`inline-flex items-center rounded-lg text-xs font-semibold transition-all border shadow-2xs ${
+                      isSelected
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-800 border-amber-200 hover:border-amber-300 hover:bg-amber-50'
+                    }`}
+                  >
+                    {/* Click main body to convert this currency */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCurrencyCode(code)}
+                      className="px-2.5 py-1.5 flex items-center gap-1.5 text-left focus:outline-none"
+                      title={`Click to convert with ${item.name}`}
+                    >
+                      <span role="img" aria-label={item.country} className="text-sm">
+                        {item.flag}
+                      </span>
+                      <span className="font-bold">{code}</span>
+                      <span
+                        className={`text-[10px] font-mono font-normal ${
+                          isSelected ? 'text-slate-300' : 'text-slate-500'
+                        }`}
+                      >
+                        {(item.mid / item.unit).toFixed(item.unit === 100 && item.mid < 0.1 ? 4 : 3)}
+                      </span>
+                      <span
+                        className={`text-[9px] font-bold ${
+                          isPos
+                            ? isSelected
+                              ? 'text-emerald-300'
+                              : 'text-emerald-600'
+                            : isSelected
+                            ? 'text-rose-300'
+                            : 'text-rose-600'
+                        }`}
+                      >
+                        {isPos ? '+' : ''}
+                        {item.changePct.toFixed(1)}%
+                      </span>
+                    </button>
+
+                    {/* Quick remove button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleFav(code);
+                      }}
+                      className={`p-1 mr-1 rounded hover:bg-black/10 transition-colors ${
+                        isSelected ? 'text-slate-300 hover:text-white' : 'text-slate-400 hover:text-rose-600'
+                      }`}
+                      title={`Remove ${code} from Favourites`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-2.5 px-3 bg-white/80 rounded-lg border border-amber-200/60 text-center">
+              <p className="text-xs text-slate-600 mb-1.5">
+                No favourite currencies selected yet.
+              </p>
+              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-slate-400">Quick add:</span>
+                {['USD', 'MYR', 'JPY', 'EUR', 'GBP'].map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => handleToggleFav(code)}
+                    className="px-2 py-0.5 rounded text-[11px] font-semibold bg-white hover:bg-amber-100 text-slate-700 border border-slate-200 transition-colors"
+                  >
+                    + {code}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-2 text-[10px] text-amber-900/70 flex items-center justify-between">
+            <span>Tip: Click a currency to convert instantly, or click &quot;×&quot; to remove from favourites.</span>
           </div>
         </div>
       </div>

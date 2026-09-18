@@ -46,29 +46,31 @@ export default function App() {
   // Main Page Primary Key Filter: 'exchange_rates' or 'sora_rates'
   const [mainFilter, setMainFilter] = useState<MainCategoryFilter>('exchange_rates');
 
-  // Bookmarked Currencies state with LocalStorage persistence
-  const [bookmarkedCurrencies, setBookmarkedCurrencies] = useState<string[]>(() => {
+  // Favourite Currencies state with LocalStorage persistence
+  const [favouriteCurrencies, setFavouriteCurrencies] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('sg_rates_bookmarked_currencies');
+      const saved =
+        localStorage.getItem('sg_rates_favourite_currencies') ||
+        localStorage.getItem('sg_rates_bookmarked_currencies');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
-      console.warn('Could not read bookmarks from localStorage', e);
+      console.warn('Could not read favourites from localStorage', e);
     }
     return ['USD', 'MYR', 'JPY', 'EUR', 'GBP'];
   });
 
-  const handleToggleBookmark = (code: string) => {
-    setBookmarkedCurrencies((prev) => {
+  const handleToggleFavourite = (code: string) => {
+    setFavouriteCurrencies((prev) => {
       const next = prev.includes(code)
         ? prev.filter((c) => c !== code)
         : [...prev, code];
       try {
-        localStorage.setItem('sg_rates_bookmarked_currencies', JSON.stringify(next));
+        localStorage.setItem('sg_rates_favourite_currencies', JSON.stringify(next));
       } catch (e) {
-        console.warn('Could not save bookmarks to localStorage', e);
+        console.warn('Could not save favourites to localStorage', e);
       }
       return next;
     });
@@ -172,7 +174,7 @@ export default function App() {
       generatedAt: new Date().toISOString(),
       reportTitle: 'Singapore Daily Exchange Rates & SORA Benchmark Summary',
       source: 'Monetary Authority of Singapore (MAS) & Interbank Quotes',
-      bookmarkedCurrencies,
+      favouriteCurrencies,
       soraRates,
       exchangeRates: currencies,
     };
@@ -258,8 +260,8 @@ export default function App() {
               <CurrencyConverter
                 currencies={currencies}
                 defaultCurrencyCode={converterTargetCode}
-                bookmarkedCurrencies={bookmarkedCurrencies}
-                onToggleBookmark={handleToggleBookmark}
+                favouriteCurrencies={favouriteCurrencies}
+                onToggleFavourite={handleToggleFavourite}
               />
             </div>
             <div id="sora-mortgage-calculator-section">
@@ -311,9 +313,9 @@ export default function App() {
                 <>
                   <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
                   <span>Viewing 30+ SGD Interbank & MAS Daily Quotations</span>
-                  {bookmarkedCurrencies.length > 0 && (
+                  {favouriteCurrencies.length > 0 && (
                     <span className="hidden sm:inline text-amber-600 font-semibold">
-                      ({bookmarkedCurrencies.length} watchlisted)
+                      ({favouriteCurrencies.length} favourites)
                     </span>
                   )}
                 </>
@@ -347,7 +349,21 @@ export default function App() {
               }}
             />
 
-            {/* 2. Interactive SORA Historical Trends Chart */}
+            {/* 2. Comprehensive SORA Benchmark Reference Table & Specifications */}
+            <SoraBenchmarkTable
+              soraRates={soraRates}
+              selectedTenor={selectedSoraTenor}
+              onSelectTenor={(tenor) => {
+                setSelectedSoraTenor(tenor);
+                setChartMode('sora');
+                document.getElementById('market-historical-chart-container')?.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'center',
+                });
+              }}
+            />
+
+            {/* 3. Interactive SORA Historical Trends Chart (at bottom) */}
             <HistoricalChartSection
               activeMode="sora"
               onModeChange={(mode) => {
@@ -365,27 +381,23 @@ export default function App() {
               soraRates={soraRates}
               isLoading={isChartLoading}
             />
-
-            {/* 3. Comprehensive SORA Benchmark Reference Table & Specifications */}
-            <SoraBenchmarkTable
-              soraRates={soraRates}
-              selectedTenor={selectedSoraTenor}
-              onSelectTenor={(tenor) => {
-                setSelectedSoraTenor(tenor);
-                setChartMode('sora');
-                document.getElementById('market-historical-chart-container')?.scrollIntoView({
-                  behavior: 'smooth',
-                  block: 'center',
-                });
-              }}
-            />
           </div>
         ) : (
           /* ========================================================================= */
           /* SINGAPORE EXCHANGE RATES VIEW                                             */
           /* ========================================================================= */
           <div className="space-y-8">
-            {/* 1. Interactive Currency Historical Trends Chart Visualisation */}
+            {/* 1. Daily Singapore Exchange Rates (SGD) Table with Favourites */}
+            <FxRatesTable
+              currencies={currencies}
+              selectedCurrency={selectedCurrency}
+              onSelectCurrency={handleSelectCurrency}
+              onOpenConverterWithCurrency={handleOpenConverterWithCurrency}
+              favouriteCurrencies={favouriteCurrencies}
+              onToggleFavourite={handleToggleFavourite}
+            />
+
+            {/* 2. Interactive Currency Historical Trends Chart Visualisation (at bottom) */}
             <HistoricalChartSection
               activeMode="currency"
               onModeChange={(mode) => {
@@ -402,16 +414,6 @@ export default function App() {
               currencies={currencies}
               soraRates={soraRates}
               isLoading={isChartLoading}
-            />
-
-            {/* 2. Daily Singapore Exchange Rates (SGD) Table with Watchlist Bookmarks */}
-            <FxRatesTable
-              currencies={currencies}
-              selectedCurrency={selectedCurrency}
-              onSelectCurrency={handleSelectCurrency}
-              onOpenConverterWithCurrency={handleOpenConverterWithCurrency}
-              bookmarkedCurrencies={bookmarkedCurrencies}
-              onToggleBookmark={handleToggleBookmark}
             />
           </div>
         )}
@@ -449,8 +451,8 @@ export default function App() {
         soraRates={soraRates}
         onSelectCurrency={handleSelectCurrency}
         onSelectSora={handleSelectSora}
-        bookmarkedCurrencies={bookmarkedCurrencies}
-        onToggleBookmark={handleToggleBookmark}
+        favouriteCurrencies={favouriteCurrencies}
+        onToggleFavourite={handleToggleFavourite}
       />
 
       {/* API Connection & Documentation Modal */}

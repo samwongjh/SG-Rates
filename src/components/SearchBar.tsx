@@ -9,6 +9,9 @@ interface SearchBarProps {
   soraRates: SoraRate[];
   onSelectCurrency: (code: string) => void;
   onSelectSora: (tenor: string) => void;
+  favouriteCurrencies?: string[];
+  onToggleFavourite?: (code: string) => void;
+  // Backward compatibility
   bookmarkedCurrencies?: string[];
   onToggleBookmark?: (code: string) => void;
 }
@@ -20,12 +23,17 @@ export const SearchModal: React.FC<SearchBarProps> = ({
   soraRates,
   onSelectCurrency,
   onSelectSora,
-  bookmarkedCurrencies = [],
+  favouriteCurrencies: propFavourites,
+  onToggleFavourite: propOnToggleFavourite,
+  bookmarkedCurrencies,
   onToggleBookmark,
 }) => {
+  const favourites = propFavourites || bookmarkedCurrencies || [];
+  const handleToggleFav = propOnToggleFavourite || onToggleBookmark;
+
   const [query, setQuery] = useState('');
   const [filterType, setFilterType] = useState<
-    'all' | 'currency' | 'sora' | 'bookmarked' | 'major' | 'regional'
+    'all' | 'currency' | 'sora' | 'favourites' | 'regional'
   >('all');
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,8 +101,7 @@ export const SearchModal: React.FC<SearchBarProps> = ({
     // Type/Category Filter
     if (filterType === 'currency' && item.type !== 'currency') return false;
     if (filterType === 'sora' && item.type !== 'sora') return false;
-    if (filterType === 'bookmarked' && (item.type !== 'currency' || !bookmarkedCurrencies.includes(item.code))) return false;
-    if (filterType === 'major' && item.category !== 'major') return false;
+    if (filterType === 'favourites' && (item.type !== 'currency' || !favourites.includes(item.code))) return false;
     if (filterType === 'regional' && item.category !== 'regional') return false;
 
     // Search query matching
@@ -178,10 +185,9 @@ export const SearchModal: React.FC<SearchBarProps> = ({
         <div className="px-4 py-2 border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto text-xs bg-slate-50/30">
           {[
             { id: 'all', label: 'All Rates' },
-            { id: 'bookmarked', label: `★ Watchlist (${bookmarkedCurrencies.length})` },
+            { id: 'favourites', label: `★ Favourites (${favourites.length})` },
             { id: 'sora', label: 'SORA Rates' },
             { id: 'currency', label: 'All Currencies' },
-            { id: 'major', label: 'G10 Major' },
             { id: 'regional', label: 'ASEAN & Reg' },
           ].map((tab) => (
             <button
@@ -214,8 +220,8 @@ export const SearchModal: React.FC<SearchBarProps> = ({
             filteredItems.map((item, index) => {
               const isSelected = index === selectedIndex;
               const isPositive = item.changePct >= 0;
-              const isCurrBookmarked =
-                item.type === 'currency' && bookmarkedCurrencies.includes(item.code);
+              const isCurrFav =
+                item.type === 'currency' && favourites.includes(item.code);
 
               return (
                 <div
@@ -258,19 +264,19 @@ export const SearchModal: React.FC<SearchBarProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2.5 shrink-0 ml-3 text-right">
-                    {/* Star bookmark toggle if currency */}
-                    {item.type === 'currency' && onToggleBookmark && (
+                    {/* Star favourite toggle if currency */}
+                    {item.type === 'currency' && handleToggleFav && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onToggleBookmark(item.code);
+                          handleToggleFav(item.code);
                         }}
                         className="p-1 rounded hover:bg-slate-200 text-slate-400"
-                        title={isCurrBookmarked ? 'Remove bookmark' : 'Bookmark currency'}
+                        title={isCurrFav ? 'Remove from favourites' : 'Add to favourites'}
                       >
                         <Star
                           className={`w-4 h-4 ${
-                            isCurrBookmarked
+                            isCurrFav
                               ? 'fill-amber-400 text-amber-500'
                               : 'text-slate-300 hover:text-amber-400'
                           }`}
