@@ -13,7 +13,8 @@ export default async function handler(req: Request, res: Response) {
     return res.status(204).end();
   }
 
-  const masKeyId = process.env.MAS_KEY_ID || (req.headers['keyid'] as string) || (req.query.keyId as string);
+  const masExchangeId = process.env.MAS_EXCHANGE_ID || (req.headers['keyid'] as string) || (req.query.keyId as string);
+  const masRateId = process.env.MAS_RATE_ID || (req.headers['keyid'] as string) || (req.query.keyId as string);
   const now = new Date();
   const sgtTime = new Intl.DateTimeFormat('en-SG', {
     timeZone: 'Asia/Singapore',
@@ -21,18 +22,30 @@ export default async function handler(req: Request, res: Response) {
     timeStyle: 'long',
   }).format(now);
 
+  const exchangeConfigured = Boolean(masExchangeId);
+  const rateConfigured = Boolean(masRateId);
+
   return res.status(200).json({
     status: 'ok',
     timestamp: now.toISOString(),
     sgtTime,
     environment: process.env.NODE_ENV || 'development',
     masApi: {
-      configured: Boolean(masKeyId),
-      hasEnvKey: Boolean(process.env.MAS_KEY_ID),
-      headerKeyProvided: Boolean(req.headers['keyid']),
-      message: masKeyId
-        ? 'MAS API KeyId detected. Ready to proxy requests to MAS datasets.'
-        : 'MAS_KEY_ID environment variable is not configured. Add it in your environment or pass via KeyId header.',
+      exchangeRates: {
+        configured: exchangeConfigured,
+        hasEnvVar: Boolean(process.env.MAS_EXCHANGE_ID),
+        envVarName: 'MAS_EXCHANGE_ID',
+      },
+      soraRates: {
+        configured: rateConfigured,
+        hasEnvVar: Boolean(process.env.MAS_RATE_ID),
+        envVarName: 'MAS_RATE_ID',
+      },
+      allConfigured: exchangeConfigured && rateConfigured,
+      message:
+        exchangeConfigured && rateConfigured
+          ? 'Both MAS_EXCHANGE_ID and MAS_RATE_ID are configured.'
+          : `Configuration needed: ${!exchangeConfigured ? 'MAS_EXCHANGE_ID missing. ' : ''}${!rateConfigured ? 'MAS_RATE_ID missing.' : ''}`.trim(),
     },
     endpoints: {
       health: '/api/health',

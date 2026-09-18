@@ -257,8 +257,9 @@ export const ApiConnectionModal: React.FC<ApiConnectionModalProps> = ({
               <div>GET /api/health - Server health & MAS configuration status</div>
               <div>GET /api/exchangerates - Daily SGD exchange rates proxy</div>
               <div>GET /api/sorarates - Daily SORA & compounded averages proxy</div>
-              <div className="text-amber-400 font-bold pt-1.5">// MAS Gateway Targets & Header:</div>
-              <div>Header: KeyId: &lt;MAS_KEY_ID&gt;</div>
+              <div className="text-amber-400 font-bold pt-1.5">// MAS Gateway Targets & Required KeyIds:</div>
+              <div>Daily Exchange Rates: Header: KeyId: &lt;MAS_EXCHANGE_ID&gt;</div>
+              <div>Daily SORA Rates: Header: KeyId: &lt;MAS_RATE_ID&gt;</div>
               <div className="text-slate-400 text-[10px]">Exchange Rates: https://eservices.mas.gov.sg/apimg-gw/server/monthly_statistical_bulletin_non610ora/exchange_rates_end_of_period_daily/views/exchange_rates_end_of_period_daily</div>
               <div className="text-slate-400 text-[10px]">SORA Rates: https://eservices.mas.gov.sg/apimg-gw/server/monthly_statistical_bulletin_non610mssql/domestic_interest_rates_daily/views/domestic_interest_rates_daily</div>
             </div>

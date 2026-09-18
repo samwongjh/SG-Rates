@@ -13,17 +13,17 @@ export default async function handler(req: Request, res: Response) {
     return res.status(204).end();
   }
 
-  // Retrieve MAS KeyId strictly from environment or request headers/query (NO HARDCODING)
+  // Retrieve MAS KeyId strictly from environment (MAS_EXCHANGE_ID) or request headers/query (NO HARDCODING)
   const masKeyId =
-    process.env.MAS_KEY_ID ||
+    process.env.MAS_EXCHANGE_ID ||
     (req.headers['keyid'] as string) ||
     (req.query.keyId as string);
 
   if (!masKeyId) {
     return res.status(401).json({
-      error: 'Unauthorized - Missing MAS KeyId',
+      error: 'Unauthorized - Missing MAS Exchange KeyId',
       message:
-        'MAS_KEY_ID is not configured. Please set the MAS_KEY_ID environment variable or pass it via the "KeyId" request header.',
+        'MAS_EXCHANGE_ID is not configured. Please set the MAS_EXCHANGE_ID environment variable or pass it via the "KeyId" request header.',
       targetEndpoint: MAS_EXCHANGE_RATES_URL,
       documentation:
         'https://eservices.mas.gov.sg/apimg-gw/server/monthly_statistical_bulletin_non610ora',
