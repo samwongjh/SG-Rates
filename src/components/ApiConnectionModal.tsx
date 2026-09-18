@@ -253,11 +253,14 @@ export const ApiConnectionModal: React.FC<ApiConnectionModalProps> = ({
             </p>
 
             <div className="bg-slate-900 text-slate-200 rounded-lg p-3 font-mono text-[11px] space-y-1.5 overflow-x-auto">
-              <div className="text-emerald-400 font-bold">// MAS API Endpoints:</div>
-              <div>GET https://eservices.mas.gov.sg/api/v1/commercialbanksmonthly</div>
-              <div>GET /sora (SORA Overnight, 1M, 3M, 6M, Index)</div>
-              <div>GET /exchange-rates (USD, EUR, GBP, MYR, JPY, CNY, etc.)</div>
-              <div>GET /historical?type=sora|currency&code=USD&range=1Y</div>
+              <div className="text-emerald-400 font-bold">// Local Serverless Endpoints (Root /api):</div>
+              <div>GET /api/health - Server health & MAS configuration status</div>
+              <div>GET /api/exchangerates - Daily SGD exchange rates proxy</div>
+              <div>GET /api/sorarates - Daily SORA & compounded averages proxy</div>
+              <div className="text-amber-400 font-bold pt-1.5">// MAS Gateway Targets & Header:</div>
+              <div>Header: KeyId: &lt;MAS_KEY_ID&gt;</div>
+              <div className="text-slate-400 text-[10px]">Exchange Rates: https://eservices.mas.gov.sg/apimg-gw/server/monthly_statistical_bulletin_non610ora/exchange_rates_end_of_period_daily/views/exchange_rates_end_of_period_daily</div>
+              <div className="text-slate-400 text-[10px]">SORA Rates: https://eservices.mas.gov.sg/apimg-gw/server/monthly_statistical_bulletin_non610mssql/domestic_interest_rates_daily/views/domestic_interest_rates_daily</div>
             </div>
 
             <div className="mt-3">
