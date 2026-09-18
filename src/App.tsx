@@ -194,69 +194,11 @@ export default function App() {
 
       {/* Main Content Dashboard */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Quick Snapshot Ticker Ribbon */}
-        <div className="mb-6 bg-white border border-slate-200 rounded-xl p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-slate-900">SORA Overnight:</span>
-              <span className="font-mono font-bold text-slate-800">
-                {soraRates[0]?.rateFormatted}
-              </span>
-              <span className="text-[11px] font-semibold text-rose-600">
-                {soraRates[0]?.changeBps} bps
-              </span>
-            </div>
-            <span className="text-slate-300 hidden sm:inline">•</span>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-slate-900">3M SORA:</span>
-              <span className="font-mono font-bold text-slate-800">
-                {soraRates[2]?.rateFormatted}
-              </span>
-              <span className="text-[11px] font-semibold text-emerald-600">
-                +{soraRates[2]?.changeBps} bps
-              </span>
-            </div>
-            <span className="text-slate-300 hidden md:inline">•</span>
-            <div className="flex items-center gap-1.5 hidden md:flex">
-              <span className="font-bold text-slate-900">USD/SGD:</span>
-              <span className="font-mono font-bold text-slate-800">
-                {currencies[0]?.mid.toFixed(4)}
-              </span>
-              <span
-                className={`text-[11px] font-semibold ${
-                  currencies[0]?.changePct >= 0 ? 'text-emerald-600' : 'text-rose-600'
-                }`}
-              >
-                {currencies[0]?.changePct >= 0 ? '+' : ''}
-                {currencies[0]?.changePct}%
-              </span>
-            </div>
-            <span className="text-slate-300 hidden lg:inline">•</span>
-            <div className="flex items-center gap-1.5 hidden lg:flex">
-              <span className="font-bold text-slate-900">100 MYR/SGD:</span>
-              <span className="font-mono font-bold text-slate-800">
-                {currencies.find((c) => c.code === 'MYR')?.mid.toFixed(2)}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportFullReport}
-              className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 rounded-md border border-slate-200 transition-colors shrink-0"
-              title="Export complete market snapshot as JSON"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-500" />
-              <span>Full Market Export</span>
-            </button>
-          </div>
-        </div>
-
         {/* TOP SECTION: Instant Currency Converter & SORA Mortgage & Loan Estimator */}
-        {/* Placed at the top of the page for users to input figures at ease */}
+        {/* Placed at the top of the page with aligned dimensions for ease of user input */}
         <section className="mb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div id="currency-converter-section">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            <div id="currency-converter-section" className="flex flex-col h-full">
               <CurrencyConverter
                 currencies={currencies}
                 defaultCurrencyCode={converterTargetCode}
@@ -264,7 +206,7 @@ export default function App() {
                 onToggleFavourite={handleToggleFavourite}
               />
             </div>
-            <div id="sora-mortgage-calculator-section">
+            <div id="sora-mortgage-calculator-section" className="flex flex-col h-full">
               <SoraMortgageCalculator soraRates={soraRates} />
             </div>
           </div>
@@ -307,24 +249,35 @@ export default function App() {
               </button>
             </div>
 
-            {/* Context Badge */}
-            <div className="flex items-center gap-2 px-3 py-1 text-xs text-slate-500 font-medium">
-              {mainFilter === 'exchange_rates' ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                  <span>Viewing 30+ SGD Interbank & MAS Daily Quotations</span>
-                  {favouriteCurrencies.length > 0 && (
-                    <span className="hidden sm:inline text-amber-600 font-semibold">
-                      ({favouriteCurrencies.length} favourites)
-                    </span>
-                  )}
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Viewing Singapore Overnight Rate Average & Compounded Tenors</span>
-                </>
-              )}
+            <div className="flex items-center gap-3 justify-between sm:justify-end flex-wrap">
+              {/* Context Badge */}
+              <div className="flex items-center gap-2 px-3 py-1 text-xs text-slate-500 font-medium">
+                {mainFilter === 'exchange_rates' ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    <span>Viewing 30+ SGD Interbank & MAS Daily Quotations</span>
+                    {favouriteCurrencies.length > 0 && (
+                      <span className="hidden sm:inline text-amber-600 font-semibold">
+                        ({favouriteCurrencies.length} favourites)
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Viewing Singapore Overnight Rate Average & Compounded Tenors</span>
+                  </>
+                )}
+              </div>
+
+              <button
+                onClick={handleExportFullReport}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors shrink-0"
+                title="Export complete market snapshot as JSON"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden md:inline">Export Market Data</span>
+              </button>
             </div>
           </div>
         </div>
